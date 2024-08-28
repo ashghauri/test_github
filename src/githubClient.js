@@ -99,7 +99,7 @@ export class GitHubClient {
             message: commitMessage,
             content: btoa(fileContent),
             branch: this.properties.branch,
-            sha: sha, // sha is null if the file doesn't exist, so it creates a new file
+            sha: sha, // sha is null if the file doesn't exist, so it creates a new file XXXXXXXXXXX
         });
 
         return response.data;
