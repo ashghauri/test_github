@@ -1,5 +1,5 @@
-import { Octokit } from '@octokit/rest';
-import btoa from 'btoa'; // For encoding file content to base64
+import { Octokit } from '@octokit/rest'; //GitHub REST API client for JavaScript
+import btoa from 'btoa';
 
 export class GitHubClient {
 
@@ -21,7 +21,6 @@ export class GitHubClient {
 
     async getBranch(branchName) {
         if (!branchName) throw new Error("Branch Name needs to be provided");
-
         try {
             const response = await this.octokit.repos.getBranch({
                 owner: this.properties.repoOwner,
@@ -36,6 +35,8 @@ export class GitHubClient {
 
     async getFolder(folderPath) {
         try {
+            if (!folderPath) throw new Error("Path needs to be provided");
+
             const response = await this.octokit.repos.getContent({
                 owner: this.properties.repoOwner,
                 repo: this.properties.repoName,
@@ -89,7 +90,7 @@ export class GitHubClient {
             });
             sha = file.data.sha;
         } catch (error) {
-            // File doesn't exist, so no SHA is needed
+            console.log("File doesn't exist, so no SHA is needed");
         }
 
         const response = await this.octokit.repos.createOrUpdateFileContents({
@@ -99,7 +100,7 @@ export class GitHubClient {
             message: commitMessage,
             content: btoa(fileContent),
             branch: this.properties.branch,
-            sha: sha, // sha is null if the file doesn't exist, so it creates a new file XXXXXXXXXXX
+            sha: sha,
         });
 
         return response.data;
