@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import { Octokit } from '@octokit/rest';
 import btoa from 'btoa'; // For encoding file content to base64
 
 export class GitHubClient {
@@ -12,70 +12,96 @@ export class GitHubClient {
         };
         this.properties = Object.assign({}, defaults, properties || {});
         if (!this.properties.token) throw new Error("GitHub token needs to be provided");
-    }
 
-    _fetchGitHubAPI(endpoint, method = 'GET', body = null) {
-        const url = `https://api.github.com/repos/${this.properties.repoOwner}/${this.properties.repoName}${endpoint}`;
-        return fetch(url, {
-            method: method,
-            headers: {
-                'Authorization': `token ${this.properties.token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: body ? JSON.stringify(body) : null
-        }).then(res => res.json());
+        // Initialize Octokit with the provided token
+        this.octokit = new Octokit({
+            auth: this.properties.token,
+        });
     }
 
     async getBranch(branchName) {
         if (!branchName) throw new Error("Branch Name needs to be provided");
-        return this._fetchGitHubAPI(`/branches/${branchName}`);
+
+        try {
+            const response = await this.octokit.repos.getBranch({
+                owner: this.properties.repoOwner,
+                repo: this.properties.repoName,
+                branch: branchName,
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(`Failed to get branch: ${error.message}`);
+        }
     }
 
     async getFolder(folderPath) {
-        // if (!folderPath) throw new Error("Folder Path needs to be provided");
-        return this._fetchGitHubAPI(`/contents/${folderPath}?ref=${this.properties.branch}`);
+        try {
+            const response = await this.octokit.repos.getContent({
+                owner: this.properties.repoOwner,
+                repo: this.properties.repoName,
+                path: folderPath,
+                ref: this.properties.branch,
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(`Failed to get folder: ${error.message}`);
+        }
     }
 
     async deleteFile(filePath) {
         if (!filePath) throw new Error("File Path needs to be provided");
 
-        // Get file's SHA (required to delete a file in GitHub)
-        const file = await this._fetchGitHubAPI(`/contents/${filePath}?ref=${this.properties.branch}`);
-        const sha = file.sha;
+        try {
+            const file = await this.octokit.repos.getContent({
+                owner: this.properties.repoOwner,
+                repo: this.properties.repoName,
+                path: filePath,
+                ref: this.properties.branch,
+            });
+            const sha = file.data.sha;
 
-        const body = {
-            message: `Deleting file: ${filePath}`,
-            sha: sha,
-            branch: this.properties.branch
-        };
+            const response = await this.octokit.repos.deleteFile({
+                owner: this.properties.repoOwner,
+                repo: this.properties.repoName,
+                path: filePath,
+                message: `Deleting file: ${filePath}`,
+                sha: sha,
+                branch: this.properties.branch,
+            });
 
-        return this._fetchGitHubAPI(`/contents/${filePath}`, 'DELETE', body);
+            return response.data;
+        } catch (error) {
+            throw new Error(`Failed to delete file: ${error.message}`);
+        }
     }
 
     async putFile(filePath, fileContent, commitMessage = 'Committing file') {
         if (!filePath) throw new Error("File Path needs to be provided");
         if (!fileContent) throw new Error("File content needs to be provided");
 
-        // Get file's SHA if it already exists (for updating)
         let sha = null;
         try {
-            const file = await this._fetchGitHubAPI(`/contents/${filePath}?ref=${this.properties.branch}`);
-            sha = file.sha;
+            const file = await this.octokit.repos.getContent({
+                owner: this.properties.repoOwner,
+                repo: this.properties.repoName,
+                path: filePath,
+                ref: this.properties.branch,
+            });
+            sha = file.data.sha;
         } catch (error) {
             // File doesn't exist, so no SHA is needed
         }
 
-        const body = {
+        const response = await this.octokit.repos.createOrUpdateFileContents({
+            owner: this.properties.repoOwner,
+            repo: this.properties.repoName,
+            path: filePath,
             message: commitMessage,
             content: btoa(fileContent),
-            branch: this.properties.branch
-        };
+            branch: this.properties.branch,
+            sha: sha, // sha is null if the file doesn't exist, so it creates a new file
+        });
 
-        if (sha) {
-            body.sha = sha;
-        }
-
-        return this._fetchGitHubAPI(`/contents/${filePath}`, 'PUT', body);
+        return response.data;
     }
 }
