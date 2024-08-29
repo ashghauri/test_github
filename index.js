@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 
 dotenv.config(); // Load environment variables from .env
 
-import { GitHubClient } from './githubClient.js';
+import { GitHubClient } from './src/githubClient.js';
 import fs from 'fs/promises';
 
 (async () => {
